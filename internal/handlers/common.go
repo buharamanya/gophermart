@@ -5,6 +5,12 @@ import (
 	"github.com/buharamanya/gophermart/internal/service/order"
 )
 
+const (
+	readReqErrStr     = "failed to read request body"
+	ContentTypeHeader = "Content-Type"
+	JSONContentType   = "application/json"
+)
+
 type Handler struct {
 	authService  *auth.Service
 	orderService *order.Service

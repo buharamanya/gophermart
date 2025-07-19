@@ -36,10 +36,10 @@ func (s *Service) UploadOrder(ctx context.Context, userID int, number string) er
 
 	if err := s.repo.CreateOrder(ctx, order); err != nil {
 		if errors.Is(err, repository.ErrOrderExists) {
-			return nil
+			return err
 		}
 		if errors.Is(err, repository.ErrOrderNotOwned) {
-			return ErrOrderConflict
+			return err
 		}
 		return fmt.Errorf("create order: %w", err)
 	}

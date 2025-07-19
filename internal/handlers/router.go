@@ -9,6 +9,7 @@ import (
 func (h *Handler) RegisterRoutes(r *chi.Mux) {
 
 	r.Route("/api/user", func(r chi.Router) {
+
 		r.Use(logger.WithRequestLogging)
 
 		r.Group(func(r chi.Router) {
@@ -21,14 +22,12 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 		r.Group(func(r chi.Router) {
 			r.Use(h.Authenticate)
 
-			r.Get("/test", testHandler)
+			r.Group(func(r chi.Router) {
+				r.Use(WithGzipMiddleware)
 
-			// r.Group(func(r chi.Router) {
-			// 	r.Use(gzipMiddleware(l))
-
-			// 	r.Get("/orders", h.GetOrders())
-			// 	r.Get("/withdrawals", h.GetWithdrawals())
-			// })
+				r.Get("/orders", h.GetOrders())
+				// r.Get("/withdrawals", h.GetWithdrawals())
+			})
 
 			// r.Post("/orders", h.AddOrder())
 
