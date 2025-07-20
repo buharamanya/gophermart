@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	ErrInvalidOrderNumber = errors.New("invalid order number")
-	ErrOrderConflict      = errors.New("order conflict")
+	ErrOrderConflict = errors.New("order conflict")
 )
 
 type Service struct {
@@ -25,7 +24,7 @@ func NewService(repo *repository.Repository) *Service {
 
 func (s *Service) UploadOrder(ctx context.Context, userID int, number string) error {
 	if !util.ValidateLuhn(number) {
-		return ErrInvalidOrderNumber
+		return util.ErrInvalidOrderNumber
 	}
 
 	order := &model.Order{

@@ -1,5 +1,9 @@
 package util
 
+import "errors"
+
+var ErrInvalidOrderNumber = errors.New("invalid order number")
+
 func ValidateLuhn(number string) bool {
 	sum := 0
 	alternate := false

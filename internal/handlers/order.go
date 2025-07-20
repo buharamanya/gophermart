@@ -8,7 +8,7 @@ import (
 
 	"github.com/buharamanya/gophermart/internal/logger"
 	"github.com/buharamanya/gophermart/internal/repository"
-	"github.com/buharamanya/gophermart/internal/service/order"
+	"github.com/buharamanya/gophermart/internal/util"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +31,7 @@ func (h *Handler) AddOrder() http.HandlerFunc {
 
 		err = h.orderService.UploadOrder(r.Context(), userID, string(body))
 		if err != nil {
-			if errors.Is(err, order.ErrInvalidOrderNumber) {
+			if errors.Is(err, util.ErrInvalidOrderNumber) {
 				w.WriteHeader(http.StatusUnprocessableEntity)
 				return
 			}

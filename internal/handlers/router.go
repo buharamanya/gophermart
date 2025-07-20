@@ -29,16 +29,16 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 				// r.Get("/withdrawals", h.GetWithdrawals())
 			})
 
-			// r.Post("/orders", h.AddOrder())
+			r.Post("/orders", h.AddOrder())
 
-			// r.Route("/balance", func(r chi.Router) {
-			// 	r.Get("/", h.GetBalance())
+			r.Route("/balance", func(r chi.Router) {
+				r.Get("/", h.GetBalance())
 
-			// 	r.Group(func(r chi.Router) {
-			// 		r.Use(middleware.AllowContentType("application/json"))
-			// 		r.Post("/withdraw", h.AddWithdraw())
-			// 	})
-			// })
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.AllowContentType("application/json"))
+					r.Post("/withdraw", h.AddWithdraw())
+				})
+			})
 		})
 	})
 }

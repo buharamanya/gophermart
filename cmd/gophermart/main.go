@@ -19,7 +19,9 @@ import (
 	"github.com/buharamanya/gophermart/internal/logger"
 	"github.com/buharamanya/gophermart/internal/repository"
 	"github.com/buharamanya/gophermart/internal/service/auth"
+	"github.com/buharamanya/gophermart/internal/service/balance"
 	"github.com/buharamanya/gophermart/internal/service/order"
+	"github.com/buharamanya/gophermart/internal/service/withdrawal"
 )
 
 func main() {
@@ -41,14 +43,14 @@ func main() {
 
 	authService := auth.NewService(repo)
 	orderService := order.NewService(repo)
-	// balanceService := service.NewBalance(repo)
-	// withdrawalService := service.NewWithdrawal(repo)
+	balanceService := balance.NewService(repo)
+	withdrawalService := withdrawal.NewService(repo)
 
 	application := app.New(
 		authService,
 		orderService,
-		// balanceService,
-		// withdrawalService,
+		balanceService,
+		withdrawalService,
 	)
 
 	runServer(ctx, cfg.RunAddress, application.Router())

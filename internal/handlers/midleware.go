@@ -17,6 +17,8 @@ import (
 
 // -----------------Авторизация----------------------
 
+const UserIDKey = "userID"
+
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
@@ -31,13 +33,13 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "userID", userID)
+		ctx := context.WithValue(r.Context(), UserIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func getUserID(ctx context.Context) (int, error) {
-	userID, ok := ctx.Value("userID").(int)
+	userID, ok := ctx.Value(UserIDKey).(int)
 	if !ok {
 		return 0, errors.New("userID not found in context")
 	}
