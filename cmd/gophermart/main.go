@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"go.uber.org/zap"
 
 	"github.com/buharamanya/gophermart/internal/app"
 	"github.com/buharamanya/gophermart/internal/config"
@@ -22,6 +20,7 @@ import (
 	"github.com/buharamanya/gophermart/internal/service/balance"
 	"github.com/buharamanya/gophermart/internal/service/order"
 	"github.com/buharamanya/gophermart/internal/service/withdrawal"
+	"github.com/buharamanya/gophermart/internal/worker"
 )
 
 func main() {
@@ -53,7 +52,7 @@ func main() {
 		withdrawalService,
 	)
 
-	runServer(ctx, cfg.RunAddress, application.Router())
+	runServer(cfg.RunAddress, application.Router(), cfg.AccrualSystemAddress, orderService)
 }
 
 func setupDatabase(ctx context.Context, dsn string) *pgxpool.Pool {
@@ -99,34 +98,27 @@ func applyMigrations(db *pgxpool.Pool) error {
 	return nil
 }
 
-func runServer(ctx context.Context, addr string, handler http.Handler) {
+func runServer(addr string, handler http.Handler, accrualSystemAddress string, svc *order.Service) {
 	server := &http.Server{
 		Addr:    addr,
 		Handler: handler,
 	}
 
-	done := make(chan struct{})
 	go func() {
-		sigint := make(chan os.Signal, 1)
-		signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
-		<-sigint
-
-		log.Println("Shutting down server...")
-
-		shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("HTTP server shutdown error: %v", err)
+		logger.Log.Info("starting server", zap.String("address", addr))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Log.Fatal("server error", zap.Error(err))
 		}
-		close(done)
 	}()
 
-	log.Printf("Starting server on %s", addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("HTTP server error: %v", err)
+	// Запуск воркера для accrual системы
+	if accrualSystemAddress != "" {
+		accrualWorker := worker.NewAccrualWorker(svc, accrualSystemAddress)
+		go accrualWorker.Start(context.Background())
+		logger.Log.Info("accrual worker started",
+			zap.String("address", accrualSystemAddress))
+	} else {
+		logger.Log.Warn("accrual system address not provided, worker not started")
 	}
 
-	<-done
-	log.Println("Server stopped gracefully")
 }

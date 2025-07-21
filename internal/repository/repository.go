@@ -310,9 +310,72 @@ func (r *Repository) GetWithdrawalsByUser(ctx context.Context, userID int) ([]mo
 	return withdrawals, nil
 }
 
-// Helper functions
-
+// Helper function
 func isDuplicateKeyError(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// Добавляем в Repository
+func (r *Repository) GetOrdersByStatus(ctx context.Context, statuses []string) ([]model.Order, error) {
+	query := `
+		SELECT id, user_id, number, status, accrual, uploaded_at, processed_at
+		FROM orders
+		WHERE status = ANY($1)
+		ORDER BY uploaded_at ASC`
+
+	rows, err := r.db.Query(ctx, query, statuses)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query orders: %w", err)
+	}
+	defer rows.Close()
+
+	var orders []model.Order
+	for rows.Next() {
+		var o model.Order
+		if err := rows.Scan(
+			&o.ID, &o.UserID, &o.Number, &o.Status,
+			&o.Accrual, &o.UploadedAt, &o.ProcessedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan order: %w", err)
+		}
+		orders = append(orders, o)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return orders, nil
+}
+
+// GetOrderByNumber возвращает заказ по номеру
+func (r *Repository) GetOrderByNumber(ctx context.Context, number string) (*model.Order, error) {
+	query := `
+        SELECT id, user_id, number, status, accrual, uploaded_at, processed_at
+        FROM orders
+        WHERE number = $1`
+
+	var order model.Order
+	err := r.db.QueryRow(ctx, query, number).
+		Scan(&order.ID, &order.UserID, &order.Number, &order.Status,
+			&order.Accrual, &order.UploadedAt, &order.ProcessedAt)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrOrderNotFound
+		}
+		return nil, fmt.Errorf("failed to get order: %w", err)
+	}
+
+	return &order, nil
+}
+
+// BeginTx начинает новую транзакцию
+func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	return tx, nil
 }
