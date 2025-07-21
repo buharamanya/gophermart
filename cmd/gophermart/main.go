@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -111,7 +114,7 @@ func runServer(addr string, handler http.Handler, accrualSystemAddress string, s
 		}
 	}()
 
-	// Запуск воркера для accrual системы
+	// Запуск воркера для accrual
 	if accrualSystemAddress != "" {
 		accrualWorker := worker.NewAccrualWorker(svc, accrualSystemAddress)
 		go accrualWorker.Start(context.Background())
@@ -120,5 +123,21 @@ func runServer(addr string, handler http.Handler, accrualSystemAddress string, s
 	} else {
 		logger.Log.Warn("accrual system address not provided, worker not started")
 	}
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Log.Info("shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Log.Fatal("server shutdown error", zap.Error(err))
+	}
+
+	logger.Log.Info("server stopped")
 
 }
