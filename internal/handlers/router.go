@@ -26,7 +26,7 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 				r.Use(WithGzipMiddleware)
 
 				r.Get("/orders", h.GetOrders())
-				// r.Get("/withdrawals", h.GetWithdrawals())
+				r.Get("/withdrawals", h.GetWithdrawals())
 			})
 
 			r.Post("/orders", h.AddOrder())
