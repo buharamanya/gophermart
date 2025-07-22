@@ -42,8 +42,15 @@ func (h *Handler) GetWithdrawals() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			logger.Log.Error("failed to encode response", zap.Error(err))
+
+		// Создаем encoder и устанавливаем параметры
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false) // Отключаем экранирование HTML-символов
+
+		if err := enc.Encode(response); err != nil {
+			logger.Log.Error("failed to encode response",
+				zap.Error(err),
+				zap.Any("withdrawals", withdrawals))
 		}
 	}
 }

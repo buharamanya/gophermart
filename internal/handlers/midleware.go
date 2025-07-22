@@ -19,7 +19,7 @@ import (
 
 type UserIdKeyType string
 
-const userIdKey UserIdKeyType = "userID"
+const userIDKey UserIdKeyType = "userID"
 
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,13 +35,13 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), userIdKey, userID)
+		ctx := context.WithValue(r.Context(), userIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func getUserID(ctx context.Context) (int, error) {
-	userID, ok := ctx.Value(userIdKey).(int)
+	userID, ok := ctx.Value(userIDKey).(int)
 	if !ok {
 		return 0, errors.New("userID not found in context")
 	}
