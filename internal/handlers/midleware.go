@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -113,90 +114,49 @@ func (c *compressReader) Close() error {
 	return c.zr.Close()
 }
 
-// func WithGzipMiddleware(next http.Handler) http.Handler {
-// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		ow := w
-
-// 		acceptEncoding := r.Header.Get("Accept-Encoding")
-// 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-// 		if supportsGzip {
-// 			cw := newCompressWriter(w)
-// 			ow = cw
-// 			defer func(cw *compressWriter) {
-// 				err := cw.Close()
-
-// 				if err != nil {
-// 					logger.Log.Warn(fmt.Sprintf("failed to close compress writer: %v", err))
-// 				}
-// 			}(cw)
-// 		}
-
-// 		contentEncoding := r.Header.Get("Content-Encoding")
-// 		sendsGzip := strings.Contains(contentEncoding, "gzip")
-// 		if sendsGzip {
-// 			contentType := r.Header.Get("Content-Type")
-// 			if !(strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html")) {
-// 				logger.Log.Warn("content encoding for bad content type", zap.String("content_type", contentType))
-// 			}
-
-// 			cr, err := newCompressReader(r.Body)
-// 			if err != nil {
-// 				w.WriteHeader(http.StatusInternalServerError)
-// 				logger.Log.Warn(fmt.Sprintf("failed to create compress reader: %v", err))
-// 				return
-// 			}
-
-// 			r.Body = cr
-// 			defer func(cr *compressReader) {
-// 				err := cr.Close()
-
-// 				if err != nil {
-// 					logger.Log.Warn(fmt.Sprintf("failed to close compress reader: %v", err))
-// 				}
-// 			}(cr)
-// 		}
-
-// 		next.ServeHTTP(ow, r)
-// 	})
-// }
-
 func WithGzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Обработка входящего сжатого контента
-		if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+		ow := w
+
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		supportsGzip := strings.Contains(acceptEncoding, "gzip")
+		if supportsGzip {
+			cw := newCompressWriter(w)
+			ow = cw
+			defer func(cw *compressWriter) {
+				err := cw.Close()
+
+				if err != nil {
+					logger.Log.Warn(fmt.Sprintf("failed to close compress writer: %v", err))
+				}
+			}(cw)
+		}
+
+		contentEncoding := r.Header.Get("Content-Encoding")
+		sendsGzip := strings.Contains(contentEncoding, "gzip")
+		if sendsGzip {
+			contentType := r.Header.Get("Content-Type")
+			if !(strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html")) {
+				logger.Log.Warn("content encoding for bad content type", zap.String("content_type", contentType))
+			}
+
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
-				logger.Log.Error("failed to create compress reader", zap.Error(err))
-				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(http.StatusInternalServerError)
+				logger.Log.Warn(fmt.Sprintf("failed to create compress reader: %v", err))
 				return
 			}
-			defer func() {
-				if err := cr.Close(); err != nil {
-					logger.Log.Warn("failed to close compress reader", zap.Error(err))
-				}
-			}()
+
 			r.Body = cr
+			defer func(cr *compressReader) {
+				err := cr.Close()
+
+				if err != nil {
+					logger.Log.Warn(fmt.Sprintf("failed to close compress reader: %v", err))
+				}
+			}(cr)
 		}
 
-		// Обработка исходящего сжатия
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		if strings.Contains(acceptEncoding, "gzip") {
-			// Не сжимаем определенные типы контента
-			contentType := w.Header().Get("Content-Type")
-			if contentType == "" ||
-				strings.HasPrefix(contentType, "application/json") ||
-				strings.HasPrefix(contentType, "text/") {
-
-				cw := newCompressWriter(w)
-				defer func() {
-					if err := cw.Close(); err != nil {
-						logger.Log.Warn("failed to close compress writer", zap.Error(err))
-					}
-				}()
-				w = cw
-			}
-		}
-
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(ow, r)
 	})
 }
