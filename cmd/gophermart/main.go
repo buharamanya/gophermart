@@ -34,7 +34,10 @@ func main() {
 
 	logger.Initialize("info")
 
-	db := setupDatabase(ctx, cfg.DatabaseURI)
+	db, err := setupDatabase(ctx, cfg.DatabaseURI)
+	if err != nil {
+		logger.Log.Fatal("failed to start database", zap.Error(err))
+	}
 	defer db.Close()
 
 	if err := applyMigrations(db); err != nil {
@@ -58,7 +61,7 @@ func main() {
 	runServer(cfg.RunAddress, application.Router(), cfg.AccrualSystemAddress, orderService)
 }
 
-func setupDatabase(ctx context.Context, dsn string) *pgxpool.Pool {
+func setupDatabase(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		log.Fatalf("Unable to parse database config: %v", err)
@@ -70,16 +73,7 @@ func setupDatabase(ctx context.Context, dsn string) *pgxpool.Pool {
 	poolConfig.MaxConnIdleTime = 30 * time.Minute
 	poolConfig.HealthCheckPeriod = time.Minute
 
-	db, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		log.Fatalf("Unable to create connection pool: %v", err)
-	}
-
-	if err := db.Ping(ctx); err != nil {
-		log.Fatalf("Unable to ping database: %v", err)
-	}
-
-	return db
+	return pgxpool.NewWithConfig(ctx, poolConfig)
 }
 
 func applyMigrations(db *pgxpool.Pool) error {
