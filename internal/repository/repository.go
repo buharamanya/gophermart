@@ -44,7 +44,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *model.User) error {
 
 	if err != nil {
 		if isDuplicateKeyError(err) {
-			return fmt.Errorf("User creation failed for login %s: %w", user.Login, ErrUserExists)
+			return fmt.Errorf("user creation failed for login %s: %w", user.Login, ErrUserExists)
 		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
