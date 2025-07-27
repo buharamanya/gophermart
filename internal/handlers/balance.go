@@ -24,7 +24,7 @@ func (h *Handler) GetBalance() http.HandlerFunc {
 
 		balance, err := h.balanceService.GetBalance(r.Context(), userID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			logger.Log.Error("failed to get balance", zap.Error(err))
 			return
 		}
@@ -69,7 +69,7 @@ func (h *Handler) AddWithdraw() http.HandlerFunc {
 		case errors.Is(err, repository.ErrInsufficientBalance):
 			http.Error(w, "insufficient funds", http.StatusPaymentRequired)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}
 }

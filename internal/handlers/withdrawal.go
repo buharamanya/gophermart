@@ -23,7 +23,7 @@ func (h *Handler) GetWithdrawals() http.HandlerFunc {
 		withdrawals, err := h.withdrawalService.GetWithdrawals(r.Context(), userID)
 		if err != nil {
 			logger.Log.Error("failed to get withdrawals", zap.Error(err))
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
