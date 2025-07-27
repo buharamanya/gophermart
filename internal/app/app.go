@@ -1,13 +1,14 @@
 package app
 
 import (
+	"errors"
+
 	"github.com/go-chi/chi/v5"
 
 	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -99,35 +100,45 @@ func RunServer(addr string, handler http.Handler, accrualSystemAddress string, s
 		Handler: handler,
 	}
 
+	// Создаем контекст для graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Запуск HTTP-сервера
 	go func() {
 		logger.Log.Info("starting server", zap.String("address", addr))
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Log.Fatal("server error", zap.Error(err))
 		}
 	}()
 
 	// Запуск воркера для accrual
+	var workerCtx context.Context
+	var workerCancel context.CancelFunc
+
 	if accrualSystemAddress != "" {
+		workerCtx, workerCancel = context.WithCancel(ctx)
+		defer workerCancel()
+
 		accrualWorker := worker.NewAccrualWorker(svc, accrualSystemAddress)
-		go accrualWorker.Start(context.Background())
-		logger.Log.Info("accrual worker started",
-			zap.String("address", accrualSystemAddress))
+		go func() {
+			logger.Log.Info("starting accrual worker", zap.String("address", accrualSystemAddress))
+			accrualWorker.Start(workerCtx) // Передаем отменяемый контекст
+		}()
 	} else {
 		logger.Log.Warn("accrual system address not provided, worker not started")
 	}
 
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
+	// Ожидаем сигнал завершения
+	<-ctx.Done()
 	logger.Log.Info("shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Завершаем работу сервера с таймаутом
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Log.Fatal("server shutdown error", zap.Error(err))
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Log.Error("server shutdown error", zap.Error(err))
 	}
 
 	logger.Log.Info("server stopped")
