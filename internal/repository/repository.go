@@ -44,7 +44,7 @@ func (r *Repository) CreateUser(ctx context.Context, user *model.User) error {
 
 	if err != nil {
 		if isDuplicateKeyError(err) {
-			return ErrUserExists
+			return fmt.Errorf("User creation failed for login %s: %w", user.Login, ErrUserExists)
 		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -64,7 +64,7 @@ func (r *Repository) GetUserByLogin(ctx context.Context, login string) (*model.U
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrUserNotFound
+			return nil, fmt.Errorf("user not found by login %s: %w", login, ErrUserNotFound)
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
