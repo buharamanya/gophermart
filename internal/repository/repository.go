@@ -212,30 +212,18 @@ func (r *Repository) UpdateBalance(ctx context.Context, userID int, current, wit
 // WithdrawalRepository methods
 
 func (r *Repository) CreateWithdrawal(ctx context.Context, withdrawal *model.Withdrawal) error {
-	tx, err := r.db.Begin(ctx)
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.RepeatableRead,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	// Check if withdrawal already exists
-	var exists bool
-	err = tx.QueryRow(ctx,
-		"SELECT EXISTS(SELECT 1 FROM withdrawals WHERE order_number = $1)",
-		withdrawal.OrderNumber).Scan(&exists)
-
-	if err != nil {
-		return fmt.Errorf("failed to check withdrawal existence: %w", err)
-	}
-
-	if exists {
-		return ErrWithdrawalExists
-	}
-
-	// Check balance
+	// Явная блокировка строки баланса
 	var currentBalance float64
 	err = tx.QueryRow(ctx,
-		"SELECT current FROM balances WHERE user_id = $1",
+		`SELECT current FROM balances WHERE user_id = $1 FOR UPDATE`,
 		withdrawal.UserID).Scan(&currentBalance)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -246,37 +234,34 @@ func (r *Repository) CreateWithdrawal(ctx context.Context, withdrawal *model.Wit
 		return ErrInsufficientBalance
 	}
 
-	// Create withdrawal
-	err = tx.QueryRow(ctx,
+	// Проверка существования списания (уникальность гарантируется индексом)
+	_, err = tx.Exec(ctx,
 		`INSERT INTO withdrawals (user_id, order_number, sum)
-		 VALUES ($1, $2, $3)
-		 RETURNING id, processed_at`,
-		withdrawal.UserID, withdrawal.OrderNumber, withdrawal.Sum).
-		Scan(&withdrawal.ID, &withdrawal.ProcessedAt)
+         VALUES ($1, $2, $3)`,
+		withdrawal.UserID, withdrawal.OrderNumber, withdrawal.Sum)
 
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrWithdrawalExists
+		}
 		return fmt.Errorf("failed to create withdrawal: %w", err)
 	}
 
-	// Update balance
+	// Обновление баланса
 	_, err = tx.Exec(ctx,
 		`INSERT INTO balances (user_id, current, withdrawn)
-		 VALUES ($1, $2, $3)
-		 ON CONFLICT (user_id) DO UPDATE
-		 SET current = balances.current - EXCLUDED.current,
-		     withdrawn = balances.withdrawn + EXCLUDED.withdrawn,
-		     updated_at = CURRENT_TIMESTAMP`,
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE
+         SET current = balances.current - EXCLUDED.current,
+             withdrawn = balances.withdrawn + EXCLUDED.withdrawn`,
 		withdrawal.UserID, withdrawal.Sum, withdrawal.Sum)
 
 	if err != nil {
 		return fmt.Errorf("failed to update balance: %w", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) GetWithdrawalsByUser(ctx context.Context, userID int) ([]model.Withdrawal, error) {
