@@ -120,7 +120,7 @@ func RunServer(addr string, handler http.Handler, accrualSystemAddress string, s
 		workerCtx, workerCancel = context.WithCancel(ctx)
 		defer workerCancel()
 
-		accrualWorker := worker.NewAccrualWorker(svc, accrualSystemAddress)
+		accrualWorker := worker.NewAccrualWorker(svc, accrualSystemAddress, 10)
 		go func() {
 			logger.Log.Info("starting accrual worker", zap.String("address", accrualSystemAddress))
 			accrualWorker.Start(workerCtx) // Передаем отменяемый контекст
