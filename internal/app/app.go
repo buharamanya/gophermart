@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 
@@ -113,6 +114,7 @@ func RunServer(addr string, handler http.Handler, accrualSystemAddress string, s
 	}()
 
 	// Запуск воркера для accrual
+	var workerWg sync.WaitGroup
 	var workerCtx context.Context
 	var workerCancel context.CancelFunc
 
@@ -121,9 +123,11 @@ func RunServer(addr string, handler http.Handler, accrualSystemAddress string, s
 		defer workerCancel()
 
 		accrualWorker := worker.NewAccrualWorker(svc, accrualSystemAddress, 10)
+		workerWg.Add(1)
 		go func() {
+			defer workerWg.Done()
 			logger.Log.Info("starting accrual worker", zap.String("address", accrualSystemAddress))
-			accrualWorker.Start(workerCtx) // Передаем отменяемый контекст
+			accrualWorker.Start(workerCtx)
 		}()
 	} else {
 		logger.Log.Warn("accrual system address not provided, worker not started")
@@ -132,6 +136,13 @@ func RunServer(addr string, handler http.Handler, accrualSystemAddress string, s
 	// Ожидаем сигнал завершения
 	<-ctx.Done()
 	logger.Log.Info("shutting down server...")
+
+	// Ждем завершения воркеров
+	if accrualSystemAddress != "" {
+		workerCancel()  // Явно отменяем контекст воркеров
+		workerWg.Wait() // Ждем завершения
+		logger.Log.Info("all accrual workers stopped")
+	}
 
 	// Завершаем работу сервера с таймаутом
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -142,5 +153,4 @@ func RunServer(addr string, handler http.Handler, accrualSystemAddress string, s
 	}
 
 	logger.Log.Info("server stopped")
-
 }
