@@ -27,7 +27,7 @@ type AccrualWorker struct {
 }
 
 type RateLimiter struct {
-	mu            sync.Mutex
+	mu            *sync.Mutex
 	retryAfter    time.Duration
 	limited       bool
 	lastLimitTime time.Time
@@ -40,7 +40,9 @@ func NewAccrualWorker(service *order.Service, address string, workerCount int) *
 		address:      address,
 		pollPeriod:   5 * time.Second,
 		workerCount:  workerCount,
-		rateLimit:    &RateLimiter{},
+		rateLimit: &RateLimiter{
+			mu: &sync.Mutex{},
+		},
 	}
 }
 
